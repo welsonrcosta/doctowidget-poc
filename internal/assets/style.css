@@ -1,0 +1,23 @@
+window {
+  background-color: white;
+}
+
+button {
+  min-height: 0px;
+  color: white;
+  background-image: none;
+  background-color: #107aca;
+  border: none;
+}
+
+button#open_doctolib {
+  background-color: #107aca;
+  color: white;
+}
+
+.titlebar, headerbar {
+  background-color: #072748;
+  min-height: 0px;
+  padding: 0px;
+  margin: 0px;
+}
