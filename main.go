@@ -1,20 +1,40 @@
 package main
 
+/*
+#include <stdlib.h>
+*/
+import "C"
+
 import (
 	"doctogadget/doctowidget"
+	"fmt"
+	"unsafe"
 )
 
-func main() {
-	dw := doctowidget.NewDoctowidget()
-	defer dw.Destroy()
+var dw doctowidget.Doctowidget
 
-	dw.Show()
+func main() {
+	f := func(s string) {
+		fmt.Println(s)
+	}
+	dw = doctowidget.NewDoctowidget(&f, true)
+	defer dw.Destroy()
 	dw.Run()
 }
 
-// func StartGadget(void (*doctoWidgetCallback)(const char *text),
-//                    void (*initPromptCallback)(const char *text),
-//                    void (*workingCallback)(const char *text),
-//                    void (*retryPromptCallback)(const char *text), int lang = 0) {
+type Callback func(*C.char)
 
-// }
+//export startQtGadgets
+func startQtGadgets(doctoWidgetCallback Callback,
+	initPromptCallback Callback,
+	workingCallback Callback,
+	retryPromptCallback Callback, lang C.int) {
+	f := func(s string) {
+		cstr := C.CString(s)
+		defer C.free(unsafe.Pointer(cstr))
+		doctoWidgetCallback(cstr)
+	}
+	dw = doctowidget.NewDoctowidget(&f, false)
+
+	dw.Run()
+}

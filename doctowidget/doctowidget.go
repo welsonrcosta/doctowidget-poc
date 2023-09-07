@@ -2,6 +2,7 @@ package doctowidget
 
 import (
 	"doctogadget/internal/assets"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -13,55 +14,61 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-type doctowidget struct {
-	app        *gtk.Application
-	mainWindow *gtk.Window
-	resize     *gtk.Button
+type Doctowidget struct {
+	app          *gtk.Application
+	mainWindow   *gtk.Window
+	resize       *gtk.Button
+	isMaximized  bool
+	onOpenButton *func(string)
 }
 
 const appId = "com.github.gotk3.gotk3-examples.glade"
 
-func NewDoctowidget() doctowidget {
+func NewDoctowidget(f *func(string), show bool) Doctowidget {
 	app, err := gtk.ApplicationNew(appId, glib.APPLICATION_FLAGS_NONE)
 	checkError(err)
 
-	dw := doctowidget{}
+	dw := Doctowidget{onOpenButton: f, isMaximized: true}
 	dw.app = app
 
 	app.Connect("activate", func() {
-
-		log.Println("application activate")
-
-		builder, err := gtk.BuilderNewFromString(assets.Ui)
-		checkError(err)
-
-		//Connect button signals to doctowidget functions
-		signals := map[string]interface{}{
-			"on_open_doctolib_button_clicked": dw.onOpenButtonClicked,
-			"on_book_button_clicked":          dw.onBookButtonClicked,
-			"on_history_button_clicked":       dw.onHistoryButtonClicked,
-			"on_list_button_clicked":          dw.onListButtonClicked,
-			"on_resize_button_clicked":        dw.onResizeButtonClicked,
-		}
-		builder.ConnectSignals(signals)
-
-		win, err := getMainWindow(builder)
-		checkError(err)
-		app.AddWindow(win)
-		dw.mainWindow = win
-
-		setupDoctoligLogo(builder)
-		resize, err := setupResizeButton(builder)
-		checkError(err)
-		dw.resize = resize
-
-		win.ShowAll()
-		loadCSS()
-
-		builder.Unref()
+		activateDoctowidget(app, dw, show)
 	})
 
 	return dw
+}
+
+func activateDoctowidget(app *gtk.Application, dw Doctowidget, show bool) {
+	builder, err := gtk.BuilderNewFromString(assets.Ui)
+	checkError(err)
+
+	win, err := getMainWindow(builder)
+	checkError(err)
+	app.AddWindow(win)
+	dw.mainWindow = win
+
+	setupDoctoligLogo(builder)
+	resize, err := setupResizeButton(builder)
+	checkError(err)
+	dw.resize = resize
+
+	log.Println("application activate")
+	//Connect button signals to Doctowidget functions
+	signals := map[string]interface{}{
+		"on_open_doctolib_button_clicked": dw.onOpenButtonClicked,
+		"on_book_button_clicked":          dw.onBookButtonClicked,
+		"on_history_button_clicked":       dw.onHistoryButtonClicked,
+		"on_list_button_clicked":          dw.onListButtonClicked,
+		"on_resize_button_clicked":        dw.onResizeButtonClicked,
+	}
+	builder.ConnectSignals(signals)
+
+	loadCSS()
+	if show {
+		dw.Show()
+	}
+
+	builder.Unref()
 }
 
 func loadCSS() {
@@ -74,17 +81,17 @@ func loadCSS() {
 	gtk.AddProviderForScreen(screen, cssProvider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }
 
-func (dw doctowidget) Show() {
+func (dw Doctowidget) Show() {
 	if dw.mainWindow != nil {
 		dw.mainWindow.ShowAll()
 	}
 }
-func (dw doctowidget) Hide() {}
-func (dw doctowidget) Run() {
-	dw.app.Run(os.Args)
+func (dw Doctowidget) Hide() {}
+func (dw Doctowidget) Run() int {
+	return dw.app.Run(os.Args)
 }
 
-func (dw *doctowidget) Destroy() {
+func (dw *Doctowidget) Destroy() {
 	dw.app.Unref()
 	dw.app = nil
 	dw.mainWindow = nil
@@ -151,22 +158,46 @@ func setupResizeButton(builder *gtk.Builder) (*gtk.Button, error) {
 	return nil, errors.New("could not configure resize button")
 }
 
-func (dw doctowidget) onResizeButtonClicked() {
-	fmt.Println("Resize")
+func (dw *Doctowidget) onResizeButtonClicked() {
+	fmt.Printf("Resize %s\n", dw.isMaximized)
+	w, h := dw.resize.GetSizeRequest()
+	dw.isMaximized = !dw.isMaximized
+	if dw.isMaximized {
+		img := loadImage("dwindle.svg", w, h)
+		dw.resize.SetImage(img)
+	} else {
+		img := loadImage("enlarge.svg", w, h)
+		dw.resize.SetImage(img)
+	}
 }
 
-func (dw doctowidget) onOpenButtonClicked() {
+func (dw *Doctowidget) onOpenButtonClicked() {
 	fmt.Println("Open")
+	if dw.onOpenButton != nil {
+		f := *dw.onOpenButton
+		x, y := dw.app.GetActiveWindow().GetPosition()
+		move, err := json.Marshal(struct {
+			Command string `json:"command"`
+			X       int    `json:"x"`
+			Y       int    `json:"y"`
+		}{
+			Command: "set_position",
+			X:       x,
+			Y:       y,
+		})
+		checkError(err)
+		f(string(move))
+	}
 }
 
-func (dw doctowidget) onHistoryButtonClicked() {
+func (dw Doctowidget) onHistoryButtonClicked() {
 	fmt.Println("History")
 }
 
-func (dw doctowidget) onListButtonClicked() {
+func (dw Doctowidget) onListButtonClicked() {
 	fmt.Println("List")
 }
 
-func (dw doctowidget) onBookButtonClicked() {
+func (dw Doctowidget) onBookButtonClicked() {
 	fmt.Println("Book")
 }
