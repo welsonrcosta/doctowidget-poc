@@ -6,35 +6,50 @@ package main
 import "C"
 
 import (
+	"bufio"
 	"doctogadget/doctowidget"
 	"fmt"
-	"unsafe"
+	"log"
+	"os"
+	"sync"
 )
 
-var dw doctowidget.Doctowidget
-
 func main() {
-	f := func(s string) {
-		fmt.Println(s)
-	}
-	dw = doctowidget.NewDoctowidget(&f, true)
-	defer dw.Destroy()
-	dw.Run()
+	var wg sync.WaitGroup
+	in := make(chan string)
+	out := make(chan string)
+
+	wg.Add(1)
+	go func() {
+		for m := range out {
+			fmt.Println(m)
+		}
+		wg.Done()
+	}()
+	wg.Add(1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			s, err := reader.ReadString('\n')
+
+			if err != nil {
+
+				//close(messages)
+				log.Println("Error in read string", err)
+			}
+			in <- s[:len(s)-1]
+		}
+	}()
+	wg.Add(1)
+	go startGtkApp(in, out, &wg)
+	wg.Wait()
 }
 
-type Callback func(*C.char)
-
-//export startQtGadgets
-func startQtGadgets(doctoWidgetCallback Callback,
-	initPromptCallback Callback,
-	workingCallback Callback,
-	retryPromptCallback Callback, lang C.int) {
-	f := func(s string) {
-		cstr := C.CString(s)
-		defer C.free(unsafe.Pointer(cstr))
-		doctoWidgetCallback(cstr)
-	}
-	dw = doctowidget.NewDoctowidget(&f, false)
-
+func startGtkApp(in chan string, out chan string, wg *sync.WaitGroup) {
+	dw := doctowidget.NewDoctowidget(in, out)
+	defer dw.Destroy()
 	dw.Run()
+	wg.Done()
+	close(in)
+	close(out)
 }

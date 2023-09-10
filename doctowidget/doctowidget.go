@@ -15,30 +15,31 @@ import (
 )
 
 type Doctowidget struct {
-	app          *gtk.Application
-	mainWindow   *gtk.Window
-	resize       *gtk.Button
-	isMaximized  bool
-	onOpenButton *func(string)
+	app         *gtk.Application
+	mainWindow  *gtk.Window
+	resize      *gtk.Button
+	in          chan string
+	out         chan string
+	isMaximized bool
 }
 
 const appId = "com.github.gotk3.gotk3-examples.glade"
 
-func NewDoctowidget(f *func(string), show bool) Doctowidget {
+func NewDoctowidget(in chan string, out chan string) Doctowidget {
 	app, err := gtk.ApplicationNew(appId, glib.APPLICATION_FLAGS_NONE)
 	checkError(err)
 
-	dw := Doctowidget{onOpenButton: f, isMaximized: true}
+	dw := Doctowidget{isMaximized: true, in: in, out: out}
 	dw.app = app
 
 	app.Connect("activate", func() {
-		activateDoctowidget(app, dw, show)
+		activateDoctowidget(app, &dw)
 	})
 
 	return dw
 }
 
-func activateDoctowidget(app *gtk.Application, dw Doctowidget, show bool) {
+func activateDoctowidget(app *gtk.Application, dw *Doctowidget) {
 	builder, err := gtk.BuilderNewFromString(assets.Ui)
 	checkError(err)
 
@@ -63,10 +64,23 @@ func activateDoctowidget(app *gtk.Application, dw Doctowidget, show bool) {
 	}
 	builder.ConnectSignals(signals)
 
+	go func() {
+		for m := range dw.in {
+			log.Printf("received %s\n", m)
+			switch m {
+			case "show":
+				{
+					dw.Show()
+				}
+			case "hide":
+				{
+					dw.Hide()
+				}
+			}
+		}
+	}()
+
 	loadCSS()
-	if show {
-		dw.Show()
-	}
 
 	builder.Unref()
 }
@@ -80,13 +94,16 @@ func loadCSS() {
 	checkError(err)
 	gtk.AddProviderForScreen(screen, cssProvider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }
-
 func (dw Doctowidget) Show() {
-	if dw.mainWindow != nil {
+	var f = func() {
 		dw.mainWindow.ShowAll()
+		dw.mainWindow.SetKeepAbove(true)
 	}
+	glib.IdleAdd(f)
 }
-func (dw Doctowidget) Hide() {}
+func (dw Doctowidget) Hide() {
+	glib.IdleAdd(dw.mainWindow.Hide)
+}
 func (dw Doctowidget) Run() int {
 	return dw.app.Run(os.Args)
 }
@@ -159,7 +176,7 @@ func setupResizeButton(builder *gtk.Builder) (*gtk.Button, error) {
 }
 
 func (dw *Doctowidget) onResizeButtonClicked() {
-	fmt.Printf("Resize %s\n", dw.isMaximized)
+	fmt.Printf("Resize %v\n", dw.isMaximized)
 	w, h := dw.resize.GetSizeRequest()
 	dw.isMaximized = !dw.isMaximized
 	if dw.isMaximized {
@@ -172,22 +189,18 @@ func (dw *Doctowidget) onResizeButtonClicked() {
 }
 
 func (dw *Doctowidget) onOpenButtonClicked() {
-	fmt.Println("Open")
-	if dw.onOpenButton != nil {
-		f := *dw.onOpenButton
-		x, y := dw.app.GetActiveWindow().GetPosition()
-		move, err := json.Marshal(struct {
-			Command string `json:"command"`
-			X       int    `json:"x"`
-			Y       int    `json:"y"`
-		}{
-			Command: "set_position",
-			X:       x,
-			Y:       y,
-		})
-		checkError(err)
-		f(string(move))
-	}
+	x, y := dw.app.GetActiveWindow().GetPosition()
+	move, err := json.Marshal(struct {
+		Command string `json:"command"`
+		X       int    `json:"x"`
+		Y       int    `json:"y"`
+	}{
+		Command: "set_position",
+		X:       x,
+		Y:       y,
+	})
+	checkError(err)
+	dw.out <- string(move)
 }
 
 func (dw Doctowidget) onHistoryButtonClicked() {
