@@ -21,7 +21,7 @@ type DoctoWidgetsApp struct {
 	ready bool
 }
 
-func NewApp(in chan interface{}, out chan string) DoctoWidgetsApp {
+func NewApp(in chan interface{}, out chan nativemessage.QtToZDMessage) DoctoWidgetsApp {
 	app, err := gtk.ApplicationNew(appId, glib.APPLICATION_FLAGS_NONE)
 	util.CheckError(err)
 
@@ -33,7 +33,7 @@ func NewApp(in chan interface{}, out chan string) DoctoWidgetsApp {
 	return widgetsApp
 }
 
-func (wa *DoctoWidgetsApp) initAppWindows(in chan interface{}, out chan string) {
+func (wa *DoctoWidgetsApp) initAppWindows(in chan interface{}, out chan nativemessage.QtToZDMessage) {
 	dw := widgetwindow.NewDoctowidget(in, out)
 	wa.dw = dw
 

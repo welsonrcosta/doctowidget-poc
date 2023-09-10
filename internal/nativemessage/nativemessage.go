@@ -31,8 +31,13 @@ type MessageForward struct {
 	Params messageFunctionCall `json:"params"`
 }
 
+type QtToZDMessage struct {
+	Type   string `json:"type"`
+	Action string `json:"action"`
+}
+
 func FromJson(j string) (interface{}, error) {
-	m := message{}
+	var m message
 	if err := json.Unmarshal([]byte(j), &m); err != nil {
 		return nil, err
 	}

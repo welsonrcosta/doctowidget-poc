@@ -2,6 +2,7 @@ package widgetwindow
 
 import (
 	"doctogadget/internal/assets"
+	"doctogadget/internal/nativemessage"
 	"doctogadget/internal/util"
 	"encoding/json"
 	"errors"
@@ -16,11 +17,11 @@ type WidgetWindow struct {
 	ready       bool
 	mainWindow  *gtk.Window
 	resize      *gtk.Button
-	out         chan string
+	out         chan nativemessage.QtToZDMessage
 	isMaximized bool
 }
 
-func NewDoctowidget(in chan interface{}, out chan string) WidgetWindow {
+func NewDoctowidget(in chan interface{}, out chan nativemessage.QtToZDMessage) WidgetWindow {
 	dw := WidgetWindow{out: out, isMaximized: true, ready: true}
 	return dw
 }
@@ -152,7 +153,8 @@ func (dw *WidgetWindow) onOpenButtonClicked() {
 		Y:       y,
 	})
 	util.CheckError(err)
-	dw.out <- string(move)
+	m := nativemessage.QtToZDMessage{Type: "WIDGET_ACTION", Action: string(move)}
+	dw.out <- m
 }
 
 func (dw WidgetWindow) onHistoryButtonClicked() {

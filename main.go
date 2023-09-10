@@ -11,12 +11,12 @@ import (
 func main() {
 	var wg sync.WaitGroup
 	in := make(chan interface{})
-	out := make(chan string)
+	out := make(chan nativemessage.QtToZDMessage)
 
 	wg.Add(1)
 	go func() {
 		for m := range out {
-			fmt.Println(m)
+			fmt.Printf("%v", m)
 		}
 		wg.Done()
 	}()
@@ -43,7 +43,7 @@ func setupNativeMessageReader(in chan interface{}) {
 	}
 }
 
-func startGtkApp(in chan interface{}, out chan string, wg *sync.WaitGroup) {
+func startGtkApp(in chan interface{}, out chan nativemessage.QtToZDMessage, wg *sync.WaitGroup) {
 	app := app.NewApp(in, out)
 	app.Run()
 	wg.Done()
