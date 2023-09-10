@@ -1,17 +1,16 @@
 package main
 
 import (
-	"bufio"
 	"doctogadget/app"
+	"doctogadget/internal/nativemessage"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 )
 
 func main() {
 	var wg sync.WaitGroup
-	in := make(chan string)
+	in := make(chan interface{})
 	out := make(chan string)
 
 	wg.Add(1)
@@ -30,20 +29,21 @@ func main() {
 	wg.Wait()
 }
 
-func setupNativeMessageReader(in chan string) {
-	reader := bufio.NewReader(os.Stdin)
+func setupNativeMessageReader(in chan interface{}) {
+	reader := nativemessage.NewNativeMessageReader()
 	for {
-		s, err := reader.ReadString('\n')
+		m, err := reader.ReadMessage()
 
 		if err != nil {
 			log.Println("Error in read string", err)
+			continue
 		}
 		// TODO native message marshal
-		in <- s[:len(s)-1]
+		in <- m
 	}
 }
 
-func startGtkApp(in chan string, out chan string, wg *sync.WaitGroup) {
+func startGtkApp(in chan interface{}, out chan string, wg *sync.WaitGroup) {
 	app := app.NewApp(in, out)
 	app.Run()
 	wg.Done()

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/glib"
@@ -17,13 +16,12 @@ type WidgetWindow struct {
 	ready       bool
 	mainWindow  *gtk.Window
 	resize      *gtk.Button
-	in          chan string
 	out         chan string
 	isMaximized bool
 }
 
-func NewDoctowidget(in chan string, out chan string) WidgetWindow {
-	dw := WidgetWindow{in: in, out: out, isMaximized: true, ready: true}
+func NewDoctowidget(in chan interface{}, out chan string) WidgetWindow {
+	dw := WidgetWindow{out: out, isMaximized: true, ready: true}
 	return dw
 }
 
@@ -55,21 +53,24 @@ func (dw *WidgetWindow) ActivateDoctowidget(app *gtk.Application) error {
 	}
 	builder.ConnectSignals(signals)
 
-	go func() {
-		for m := range dw.in {
-			log.Printf("received %s\n", m)
-			switch m {
-			case "show":
-				{
-					dw.Show()
-				}
-			case "hide":
-				{
-					dw.Hide()
-				}
-			}
-		}
-	}()
+	// go func() {
+	// 	for mi := range dw.in {
+	// 		m, ok := mi.(nativemessage.MessageForward)
+	// 		if ok {
+	// 			log.Printf("received %s\n", m)
+	// 			switch m.Params.FunctionName {
+	// 			case "showDoctoWidget":
+	// 				{
+	// 					dw.Show()
+	// 				}
+	// 			case "hideDoctoWidget":
+	// 				{
+	// 					dw.Hide()
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }()
 
 	builder.Unref()
 

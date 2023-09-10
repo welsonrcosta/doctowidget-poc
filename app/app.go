@@ -2,6 +2,7 @@ package app
 
 import (
 	"doctogadget/internal/assets"
+	"doctogadget/internal/nativemessage"
 	"doctogadget/internal/util"
 	"doctogadget/internal/widgetwindow"
 	"log"
@@ -20,7 +21,7 @@ type DoctoWidgetsApp struct {
 	ready bool
 }
 
-func NewApp(in chan string, out chan string) DoctoWidgetsApp {
+func NewApp(in chan interface{}, out chan string) DoctoWidgetsApp {
 	app, err := gtk.ApplicationNew(appId, glib.APPLICATION_FLAGS_NONE)
 	util.CheckError(err)
 
@@ -32,7 +33,7 @@ func NewApp(in chan string, out chan string) DoctoWidgetsApp {
 	return widgetsApp
 }
 
-func (wa *DoctoWidgetsApp) initAppWindows(in chan string, out chan string) {
+func (wa *DoctoWidgetsApp) initAppWindows(in chan interface{}, out chan string) {
 	dw := widgetwindow.NewDoctowidget(in, out)
 	wa.dw = dw
 
@@ -40,6 +41,25 @@ func (wa *DoctoWidgetsApp) initAppWindows(in chan string, out chan string) {
 		loadCSSProvider()
 		err := dw.ActivateDoctowidget(wa.app)
 		util.CheckError(err)
+
+		go func() {
+			for mi := range in {
+				m, ok := mi.(nativemessage.MessageForward)
+				if ok {
+					log.Printf("received %s\n", m)
+					switch m.Params.FunctionName {
+					case "showDoctoWidget":
+						{
+							dw.Show()
+						}
+					case "hideDoctoWidget":
+						{
+							dw.Hide()
+						}
+					}
+				}
+			}
+		}()
 	})
 }
 
