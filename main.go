@@ -1,13 +1,8 @@
 package main
 
-/*
-#include <stdlib.h>
-*/
-import "C"
-
 import (
 	"bufio"
-	"doctogadget/doctowidget"
+	"doctogadget/app"
 	"fmt"
 	"log"
 	"os"
@@ -26,29 +21,31 @@ func main() {
 		}
 		wg.Done()
 	}()
+
 	wg.Add(1)
-	go func() {
-		reader := bufio.NewReader(os.Stdin)
-		for {
-			s, err := reader.ReadString('\n')
+	go setupNativeMessageReader(in)
 
-			if err != nil {
-
-				//close(messages)
-				log.Println("Error in read string", err)
-			}
-			in <- s[:len(s)-1]
-		}
-	}()
 	wg.Add(1)
 	go startGtkApp(in, out, &wg)
 	wg.Wait()
 }
 
+func setupNativeMessageReader(in chan string) {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		s, err := reader.ReadString('\n')
+
+		if err != nil {
+			log.Println("Error in read string", err)
+		}
+		// TODO native message marshal
+		in <- s[:len(s)-1]
+	}
+}
+
 func startGtkApp(in chan string, out chan string, wg *sync.WaitGroup) {
-	dw := doctowidget.NewDoctowidget(in, out)
-	defer dw.Destroy()
-	dw.Run()
+	app := app.NewApp(in, out)
+	app.Run()
 	wg.Done()
 	close(in)
 	close(out)

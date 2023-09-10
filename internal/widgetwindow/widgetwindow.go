@@ -1,21 +1,20 @@
-package doctowidget
+package widgetwindow
 
 import (
 	"doctogadget/internal/assets"
+	"doctogadget/internal/util"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/gotk3/gotk3/cairo"
-	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
 
-type Doctowidget struct {
-	app         *gtk.Application
+type WidgetWindow struct {
+	ready       bool
 	mainWindow  *gtk.Window
 	resize      *gtk.Button
 	in          chan string
@@ -23,37 +22,29 @@ type Doctowidget struct {
 	isMaximized bool
 }
 
-const appId = "com.github.gotk3.gotk3-examples.glade"
-
-func NewDoctowidget(in chan string, out chan string) Doctowidget {
-	app, err := gtk.ApplicationNew(appId, glib.APPLICATION_FLAGS_NONE)
-	checkError(err)
-
-	dw := Doctowidget{isMaximized: true, in: in, out: out}
-	dw.app = app
-
-	app.Connect("activate", func() {
-		activateDoctowidget(app, &dw)
-	})
-
+func NewDoctowidget(in chan string, out chan string) WidgetWindow {
+	dw := WidgetWindow{in: in, out: out, isMaximized: true, ready: true}
 	return dw
 }
 
-func activateDoctowidget(app *gtk.Application, dw *Doctowidget) {
-	builder, err := gtk.BuilderNewFromString(assets.Ui)
-	checkError(err)
+func (dw *WidgetWindow) ActivateDoctowidget(app *gtk.Application) error {
+	if !dw.ready {
+		return fmt.Errorf("instance was not activated")
+	}
+
+	builder, err := assets.GetUIBuilder("ui.glade")
+	util.CheckError(err)
 
 	win, err := getMainWindow(builder)
-	checkError(err)
+	util.CheckError(err)
 	app.AddWindow(win)
 	dw.mainWindow = win
 
 	setupDoctoligLogo(builder)
 	resize, err := setupResizeButton(builder)
-	checkError(err)
+	util.CheckError(err)
 	dw.resize = resize
 
-	log.Println("application activate")
 	//Connect button signals to Doctowidget functions
 	signals := map[string]interface{}{
 		"on_open_doctolib_button_clicked": dw.onOpenButtonClicked,
@@ -80,69 +71,29 @@ func activateDoctowidget(app *gtk.Application, dw *Doctowidget) {
 		}
 	}()
 
-	loadCSS()
-
 	builder.Unref()
+
+	return nil
 }
 
-func loadCSS() {
-	cssProvider, err := gtk.CssProviderNew()
-	checkError(err)
-	err = cssProvider.LoadFromData(assets.Style)
-	checkError(err)
-	screen, err := gdk.ScreenGetDefault()
-	checkError(err)
-	gtk.AddProviderForScreen(screen, cssProvider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-}
-func (dw Doctowidget) Show() {
+func (dw WidgetWindow) Show() {
 	var f = func() {
 		dw.mainWindow.ShowAll()
 		dw.mainWindow.SetKeepAbove(true)
 	}
 	glib.IdleAdd(f)
 }
-func (dw Doctowidget) Hide() {
+func (dw WidgetWindow) Hide() {
 	glib.IdleAdd(dw.mainWindow.Hide)
 }
-func (dw Doctowidget) Run() int {
-	return dw.app.Run(os.Args)
-}
 
-func (dw *Doctowidget) Destroy() {
-	dw.app.Unref()
-	dw.app = nil
-	dw.mainWindow = nil
-}
+func (dw *WidgetWindow) Destroy() {
 
-func checkError(err error) {
-	if err != nil {
-		log.Fatal("An error has occured:", err)
-	}
-}
-
-func loadImage(image string, w int, h int) *gtk.Image {
-	//buff, err := gdk.PixbufNewFromFileAtScale(image, w, h, false)
-	buff := pixBuffAtScale(image, w, h)
-	img, err := gtk.ImageNewFromPixbuf(buff)
-	checkError(err)
-	img.SetSizeRequest(w, h)
-	return img
-}
-
-func pixBuffAtScale(image string, w int, h int) *gdk.Pixbuf {
-	data, err := assets.Images.ReadFile(image)
-	checkError(err)
-
-	buff, err := gdk.PixbufNewFromBytesOnly(data)
-	checkError(err)
-	buff, err = buff.ScaleSimple(w, h, gdk.INTERP_BILINEAR)
-	checkError(err)
-	return buff
 }
 
 func getMainWindow(builder *gtk.Builder) (*gtk.Window, error) {
 	obj, err := builder.GetObject("main_window")
-	checkError(err)
+	util.CheckError(err)
 
 	if win, ok := obj.(*gtk.Window); ok {
 		return win, nil
@@ -152,10 +103,10 @@ func getMainWindow(builder *gtk.Builder) (*gtk.Window, error) {
 
 func setupDoctoligLogo(builder *gtk.Builder) {
 	obj, err := builder.GetObject("doctolib_logo")
-	checkError(err)
+	util.CheckError(err)
 	if logo, ok := obj.(*gtk.DrawingArea); ok {
 		logoW, rh := logo.GetSizeRequest()
-		buff := pixBuffAtScale("logo_docto.svg", int(float64(logoW)*0.8), int(float64(rh)*0.8))
+		buff := assets.PixBuffAtScale("logo_docto.svg", int(float64(logoW)*0.8), int(float64(rh)*0.8))
 		logo.Connect("draw", func(da *gtk.DrawingArea, cr *cairo.Context) {
 			gtk.GdkCairoSetSourcePixBuf(cr, buff, float64(logoW)*0.1, float64(rh)*0.3)
 			cr.Paint()
@@ -165,31 +116,31 @@ func setupDoctoligLogo(builder *gtk.Builder) {
 
 func setupResizeButton(builder *gtk.Builder) (*gtk.Button, error) {
 	obj, err := builder.GetObject("resize_button")
-	checkError(err)
+	util.CheckError(err)
 	if btn, ok := obj.(*gtk.Button); ok {
 		w, h := btn.GetSizeRequest()
-		img := loadImage("dwindle.svg", w, h)
+		img := assets.LoadImage("dwindle.svg", w, h)
 		btn.SetImage(img)
 		return btn, nil
 	}
 	return nil, errors.New("could not configure resize button")
 }
 
-func (dw *Doctowidget) onResizeButtonClicked() {
+func (dw *WidgetWindow) onResizeButtonClicked() {
 	fmt.Printf("Resize %v\n", dw.isMaximized)
 	w, h := dw.resize.GetSizeRequest()
 	dw.isMaximized = !dw.isMaximized
 	if dw.isMaximized {
-		img := loadImage("dwindle.svg", w, h)
+		img := assets.LoadImage("dwindle.svg", w, h)
 		dw.resize.SetImage(img)
 	} else {
-		img := loadImage("enlarge.svg", w, h)
+		img := assets.LoadImage("enlarge.svg", w, h)
 		dw.resize.SetImage(img)
 	}
 }
 
-func (dw *Doctowidget) onOpenButtonClicked() {
-	x, y := dw.app.GetActiveWindow().GetPosition()
+func (dw *WidgetWindow) onOpenButtonClicked() {
+	x, y := dw.mainWindow.GetPosition()
 	move, err := json.Marshal(struct {
 		Command string `json:"command"`
 		X       int    `json:"x"`
@@ -199,18 +150,18 @@ func (dw *Doctowidget) onOpenButtonClicked() {
 		X:       x,
 		Y:       y,
 	})
-	checkError(err)
+	util.CheckError(err)
 	dw.out <- string(move)
 }
 
-func (dw Doctowidget) onHistoryButtonClicked() {
+func (dw WidgetWindow) onHistoryButtonClicked() {
 	fmt.Println("History")
 }
 
-func (dw Doctowidget) onListButtonClicked() {
+func (dw WidgetWindow) onListButtonClicked() {
 	fmt.Println("List")
 }
 
-func (dw Doctowidget) onBookButtonClicked() {
+func (dw WidgetWindow) onBookButtonClicked() {
 	fmt.Println("Book")
 }
