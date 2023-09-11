@@ -35,10 +35,10 @@ func setupNativeMessageReader(in chan interface{}) {
 		m, err := reader.ReadMessage()
 
 		if err != nil {
-			log.Println("Error in read string", err)
-			continue
+			if err.Error() != "EOF" {
+				log.Printf("Error in ReadMessage: %s", err)
+			}
 		}
-		// TODO native message marshal
 		in <- m
 	}
 }

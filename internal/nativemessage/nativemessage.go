@@ -1,11 +1,14 @@
 package nativemessage
 
 import (
-	"bufio"
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"unsafe"
 )
 
 type message struct {
@@ -36,7 +39,7 @@ type QtToZDMessage struct {
 	Action string `json:"action"`
 }
 
-func FromJson(j string) (interface{}, error) {
+func fromJson(j string) (interface{}, error) {
 	var m message
 	if err := json.Unmarshal([]byte(j), &m); err != nil {
 		return nil, err
@@ -60,36 +63,68 @@ func FromJson(j string) (interface{}, error) {
 	}
 }
 
-func (m message) ToJson() (string, error) {
+func toJson(m interface{}) ([]byte, error) {
 	j, err := json.Marshal(m)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(j), nil
+	return j, nil
 }
 
 type NativeMessageReader struct {
-	ready  bool
-	reader bufio.Reader
+	ready     bool
+	byteOrder binary.ByteOrder
 }
 
 func NewNativeMessageReader() NativeMessageReader {
-	reader := bufio.NewReader(os.Stdin)
-	n := NativeMessageReader{reader: *reader, ready: true}
+	byteOrder := getByteOrder()
+
+	n := NativeMessageReader{ready: true, byteOrder: byteOrder}
 
 	return n
 }
 
-func (n *NativeMessageReader) ReadMessage() (interface{}, error) {
-	s, err := n.reader.ReadString('\n')
-
-	if err != nil {
-		log.Println("Error in read string", err)
+func getByteOrder() binary.ByteOrder {
+	var one int16 = 1
+	var byteOrder binary.ByteOrder
+	b := (*byte)(unsafe.Pointer(&one))
+	if *b == 0 {
+		byteOrder = binary.BigEndian
+	} else {
+		byteOrder = binary.LittleEndian
 	}
-	// TODO native message marshal
-	m, err := FromJson(s)
+	return byteOrder
+}
+
+func (n *NativeMessageReader) ReadMessage() (interface{}, error) {
+	// Read message size
+	var messageLength int32
+	err := binary.Read(os.Stdin, n.byteOrder, &messageLength)
 	if err != nil {
 		return nil, err
 	}
-	return m, nil
+	log.Printf("received message size: %d", messageLength)
+	// Read message bytes
+	message := make([]byte, messageLength)
+	_, err = io.ReadAtLeast(os.Stdin, message, int(messageLength))
+	// r = bufio.NewReaderSize(os.Stdin, int(messageLength))
+	// _, err = r.Read(message)
+	if err != nil {
+		return nil, err
+	}
+	// Parse and return message
+	log.Printf("received message size: %s", message)
+	return fromJson(string(message))
+}
+
+func EncodeNativeMessage(m interface{}) ([]byte, error) {
+	buff := new(bytes.Buffer)
+	nm, err := toJson(m)
+	if err != nil {
+		return nil, err
+	}
+	byteOrder := getByteOrder()
+	binary.Write(buff, byteOrder, uint32(len(nm)))
+	binary.Write(buff, byteOrder, nm)
+	return buff.Bytes(), nil
 }
